@@ -1,0 +1,58 @@
+---
+- name: Przygotuj srodowisko szkoleniowe
+  hosts: all
+  become: yes
+  become_user: root
+  gather_facts: yes
+
+  pre_tasks:
+    - name: Wrzuć klucz publiczny admina
+      ansible.posix.authorized_key:
+        user: ubuntu
+        state: present
+        key: "{{ lookup('file', '/home/cla/.ssh/id_rsa.pub') }}"
+      tags: user
+
+    - name: Dodaj użytkownika do sudoers
+      ansible.builtin.lineinfile:
+        path: /etc/sudoers
+        state: present
+        regexp: '^ubuntu ALL='
+        line: "ubuntu ALL=(ALL) NOPASSWD: ALL"
+        validate: /usr/sbin/visudo -cf %s
+      tags: user
+
+    - name: Aktualizuj pakiety
+      ansible.builtin.package:
+        name: "*"
+        state: latest
+
+    - name: Install vscode and azure-cli
+      tags: install
+      block:
+      - name: Add mic gpg key
+        ansible.builtin.apt_key:
+          url: https://packages.microsoft.com/keys/microsoft.asc
+          state: present
+      
+      - name: Add vscode repo
+        ansible.builtin.apt_repository:
+          repo: deb https://packages.microsoft.com/repos/code stable main
+          state: present
+          filename: studio
+
+      - name: Add azure-cli repo
+        ansible.builtin.apt_repository:
+          repo: deb [arch=amd64] https://packages.microsoft.com/repos/azure-cli/ focal main
+          state: present
+          filename: azure-cli
+
+      - name: Install vscode
+        ansible.builtin.package:
+          name:
+            - code
+            - azure-cli
+          state: latest
+
+  roles:
+    - diodonfrost.terraform
